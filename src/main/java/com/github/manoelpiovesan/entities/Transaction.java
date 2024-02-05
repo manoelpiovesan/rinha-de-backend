@@ -19,7 +19,7 @@ public class Transaction extends PanacheEntity {
     @Column(name = "type", nullable = false)
     public TransactionType type;
 
-    @Column(name = "createdAt", nullable = false)
+    @Column(name = "created_at", nullable = false)
     public Date createdAt = new Date();
 
     @ManyToOne

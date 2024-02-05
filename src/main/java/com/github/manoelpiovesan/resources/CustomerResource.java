@@ -37,4 +37,17 @@ public class CustomerResource {
         return Response.ok(Customer.count()).build();
     }
 
+    @GET
+    @Path("/{id}/transactions")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getTransactions(@PathParam("id") Long id) {
+        Customer localCustomer = Customer.findById(id);
+
+        if (localCustomer == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        return Response.ok(localCustomer.transactions).build();
+    }
+
 }
