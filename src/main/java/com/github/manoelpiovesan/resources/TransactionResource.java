@@ -7,6 +7,9 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static java.lang.Math.abs;
 
 @Path("/clientes")
@@ -30,9 +33,15 @@ public class TransactionResource {
         Transaction localTransaction = validate(transaction, customerId);
 
         localTransaction.persist();
+        Map<String, Object> response = new HashMap<>();
+
+        Customer customer = Customer.findById(customerId);
+
+        response.put("limite", customer.limit);
+        response.put("saldo", customer.balance);
 
         return Response.status(Response.Status.OK)
-                       .entity(transaction)
+                       .entity(response)
                        .build();
     }
 
@@ -50,7 +59,7 @@ public class TransactionResource {
     }
 
     @Transactional
-    private Transaction validate(Transaction transaction, Long customerId) {
+    public Transaction validate(Transaction transaction, Long customerId) {
         Customer customer = Customer.findById(customerId);
 
         if (customer == null) {
@@ -59,24 +68,27 @@ public class TransactionResource {
 
         transaction.customer = customer;
 
-        if (transaction.amount == null) {
+        if (transaction.valor == null) {
             throw new WebApplicationException("Amount can't be null", 422);
         }
 
-        if (transaction.description == null ||
-            transaction.description.isEmpty()) {
-            throw new WebApplicationException("Description can't be null", 422);
+        if (transaction.descricao == null ||
+            transaction.descricao.isEmpty() ||
+            transaction.descricao.length() > 10) {
+            throw new WebApplicationException(
+                    "Description can't be null or bigger than 10 characters",
+                    422);
         }
 
-        if (transaction.type == null) {
+        if (transaction.tipo == null) {
             throw new WebApplicationException("Type can't be null", 422);
         }
 
-        if (abs(customer.balance - transaction.amount) > customer.limit) {
+        if (abs(customer.balance - transaction.valor) > customer.limit) {
             throw new WebApplicationException("Transaction not allowed", 422);
         }
 
-        customer.balance -= transaction.amount;
+        customer.balance -= transaction.valor;
         customer.persist();
 
         return transaction;
