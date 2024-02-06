@@ -2,33 +2,15 @@ package com.github.manoelpiovesan.resources;
 
 import com.github.manoelpiovesan.entities.Customer;
 import com.github.manoelpiovesan.entities.Transaction;
-import com.github.manoelpiovesan.enums.TransactionType;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-@Path("/transaction")
+import static java.lang.Math.abs;
+
+@Path("/clientes")
 public class TransactionResource {
-
-    @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response listAll() {
-        return Response.ok(Transaction.listAll()).build();
-    }
-
-    @GET
-    @Path("/{id}")
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response findById(@PathParam("id") Long id) {
-        Transaction localTransaction = Transaction.findById(id);
-
-        if (localTransaction == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-
-        return Response.ok(localTransaction).build();
-    }
 
     @GET
     @Path("/count")
@@ -40,58 +22,62 @@ public class TransactionResource {
     @POST
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
+    @Path("/{id}/transacoes")
     @Transactional
-    public Response create(Transaction transaction) {
+    public Response create(@PathParam("id") Long customerId,
+                           Transaction transaction) {
 
-        validate(transaction);
+        Transaction localTransaction = validate(transaction, customerId);
 
-        Customer customer = Customer.findById(transaction.customer.id);
+        localTransaction.persist();
 
-        if (transaction.type == TransactionType.c) {
-            customer.limit -= transaction.amount;
-        } else {
-            customer.balance -= transaction.amount;
-        }
-
-        customer.persist();
-        transaction.persist();
-
-        return Response.status(Response.Status.CREATED)
+        return Response.status(Response.Status.OK)
                        .entity(transaction)
                        .build();
     }
 
-    private Transaction validate(Transaction transaction) {
-        if (transaction.amount == null) {
-            throw new WebApplicationException("Amount can't be null", 422);
-        }
-        if (transaction.description == null ||
-            transaction.description.isEmpty()) {
-            throw new WebApplicationException("Description can't be null", 422);
-        }
-        if (transaction.type == null) {
-            throw new WebApplicationException("Type can't be null", 422);
+    @GET
+    @Path("/{id}/extrato")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response extrato(@PathParam("id") Long customerId) {
+        Customer customer = Customer.findById(customerId);
+
+        if (customer == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        if (transaction.customer == null) {
-            throw new WebApplicationException("Customer can't be null", 422);
-        }
+        return Response.ok(customer.getExtrato()).build();
+    }
 
-        Customer customer = Customer.findById(transaction.customer.id);
+    @Transactional
+    private Transaction validate(Transaction transaction, Long customerId) {
+        Customer customer = Customer.findById(customerId);
 
         if (customer == null) {
             throw new WebApplicationException("Customer not found", 404);
         }
 
-        if (customer.balance < transaction.amount &&
-            transaction.type == TransactionType.d) {
-            throw new WebApplicationException("Insufficient funds", 422);
+        transaction.customer = customer;
+
+        if (transaction.amount == null) {
+            throw new WebApplicationException("Amount can't be null", 422);
         }
 
-        if (customer.limit < transaction.amount &&
-            transaction.type == TransactionType.c) {
-            throw new WebApplicationException("Limit exceeded", 422);
+        if (transaction.description == null ||
+            transaction.description.isEmpty()) {
+            throw new WebApplicationException("Description can't be null", 422);
         }
+
+        if (transaction.type == null) {
+            throw new WebApplicationException("Type can't be null", 422);
+        }
+
+        if (abs(customer.balance - transaction.amount) > customer.limit) {
+            throw new WebApplicationException("Transaction not allowed", 422);
+        }
+
+        customer.balance -= transaction.amount;
+        customer.persist();
 
         return transaction;
     }
